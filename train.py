@@ -8,6 +8,8 @@ from torch_geometric.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from model import VGANet
 
+from tools import train_test_masks
+
 # TODO: create link prediction accuracy measure
 
 def train(epochs:int, batch_size: int, hidden_dim: int, latent_dim: int, log_dir: str):
@@ -21,13 +23,15 @@ def train(epochs:int, batch_size: int, hidden_dim: int, latent_dim: int, log_dir
 
     writer = SummaryWriter(log_dir)
 
-    num_nodes = dataset[0].x.size(0)
-    adj_matrix = torch.zeros(num_nodes, num_nodes)
-    for edge in dataset[0].edge_index.t():
-        x, y = edge.numpy()
-        adj_matrix[x][y] = 1
-
     data = dataset[0]
+    num_nodes = data.x.size(0)
+    adj_orig = torch.zeros(num_nodes, num_nodes)
+    # TODO: ensure no diagonal values (no self connections)
+    for edge in data.edge_index.t():
+        x, y = edge.numpy()
+        adj_orig[x][y] = 1
+
+    data, adj_orig = train_test_masks(data, adj_orig)
     for i in range(0, epochs):
         epoch_loss = 0
         optimizer.zero_grad()
@@ -35,10 +39,9 @@ def train(epochs:int, batch_size: int, hidden_dim: int, latent_dim: int, log_dir
         # XXX: use test_mask etc.
         adj_pred = model(data)
         # XXX: frame as link prediction task
-        bce = bce_loss(adj_pred.view(-1), adj_matrix.view(-1))
+        bce = bce_loss(adj_pred.view(-1), adj_orig.view(-1))
         kl_div = (0.5/num_nodes) * ((1 + 2*torch.log(model.xs**2)) - model.xu**2 - model.xs**2).sum(1).mean()
         loss = bce - kl_div
-        # import pudb;pu.db
 
         writer.add_scalar("Training_Loss", loss, i)
         epoch_loss += loss.item()
