@@ -1,13 +1,15 @@
 import argparse
+import numpy as np
 import torch
 import torch.nn.functional as F
 
+from sklearn.metrics import roc_auc_score, average_precision_score
 from torch.nn import BCELoss
 from torch_geometric.datasets import Planetoid
 from torch_geometric.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
-from model import VGANet
 
+from model import VGANet
 from tools import train_test_masks
 
 # TODO: create link prediction accuracy measure
@@ -25,21 +27,21 @@ def train(epochs:int, batch_size: int, hidden_dim: int, latent_dim: int, log_dir
 
     data = dataset[0]
     num_nodes = data.x.size(0)
-    adj_orig = torch.zeros(num_nodes, num_nodes)
+    adj_orig = np.zeros((num_nodes, num_nodes))
     # TODO: ensure no diagonal values (no self connections)
+    # TODO: better method to take edge_index(coo) to sparse
     for edge in data.edge_index.t():
         x, y = edge.numpy()
         adj_orig[x][y] = 1
 
-    data, adj_orig = train_test_masks(data, adj_orig)
+    prepped_data = train_test_masks(adj_orig)
+    adj_train, _, val_edges, val_edges_f, test_edges, test_edges_f = prepped_data
     for i in range(0, epochs):
         epoch_loss = 0
         optimizer.zero_grad()
 
-        # XXX: use test_mask etc.
         adj_pred = model(data)
-        # XXX: frame as link prediction task
-        bce = bce_loss(adj_pred.view(-1), adj_orig.view(-1))
+        bce = bce_loss(adj_pred.view(-1), adj_train.view(-1))
         kl_div = (0.5/num_nodes) * ((1 + 2*torch.log(model.xs**2)) - model.xu**2 - model.xs**2).sum(1).mean()
         loss = bce - kl_div
 
@@ -48,7 +50,6 @@ def train(epochs:int, batch_size: int, hidden_dim: int, latent_dim: int, log_dir
 
         loss.backward()
         optimizer.step()
-        # XXX: output average loss per epoch sum_loss/num_batches
 
         print(f"{i}/{epochs} loss: {epoch_loss}")
 
