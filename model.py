@@ -6,9 +6,10 @@ from torch_geometric.nn import GCNConv
 from typing import Tuple
 
 class VGANet(nn.Module):
-    def __init__(self, feature_size: int, hidden_dim: int, latent_dim: int):
+    def __init__(self, feature_size: int, hidden_dim: int, latent_dim: int, dropout_rate=0.5):
         super(VGANet, self).__init__()
 
+        self.do_rate = dropout_rate
         # Encoder
         self.gcn_base = GCNConv(feature_size, hidden_dim)
         self.gcn_mean = GCNConv(hidden_dim, latent_dim)
@@ -17,7 +18,7 @@ class VGANet(nn.Module):
     def encode(self, x: torch.tensor, edge_index: torch.tensor) -> Tuple[torch.tensor, torch.tensor]:
         x = self.gcn_base(x, edge_index)
         x = F.relu(x)
-        x = F.dropout(x, training=self.training)
+        x = F.dropout(x, training=self.training, p=self.do_rate)
         self.xu = self.gcn_mean(x, edge_index)
         self.xs = self.gcn_sig(x, edge_index)
 

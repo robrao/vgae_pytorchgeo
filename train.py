@@ -11,15 +11,14 @@ from torch.utils.tensorboard import SummaryWriter
 from model import VGANet
 from tools import get_scores, train_test_masks
 
-# TODO: create link prediction accuracy measure
 
-def train(epochs:int, batch_size: int, hidden_dim: int, latent_dim: int, log_dir: str):
+def train(epochs:int, batch_size: int, hidden_dim: int, latent_dim: int, learning_rate:float, weight_decay:float, dropout_rate:float, log_dir: str):
     # NOTE: Cora used in paper with great results on link prediction
     # performs better with node features
     dataset = Planetoid(root='/tmp/Cora', name='Cora')
     feature_size = dataset[0].x.size(1)
-    model = VGANet(feature_size, hidden_dim, latent_dim)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.01, weight_decay=5e-4)
+    model = VGANet(feature_size, hidden_dim, latent_dim, dropout_rate=dropout_rate)
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     bce_loss = BCELoss(reduction='mean')
 
     writer = SummaryWriter(log_dir)
@@ -67,9 +66,12 @@ def train(epochs:int, batch_size: int, hidden_dim: int, latent_dim: int, log_dir
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("-b", "--batch_size", dest="batch_size", type=int, default=32, help="Batch size for training.")
-    parser.add_argument("-hd", "--hidden_dim", dest="hidden_dim", type=int, default=16, help="Size of the hidden dimension.")
-    parser.add_argument("-ld", "--latent_dim", dest="latent_dim", type=int, default=8, help="Size of the latent dimension.")
+    parser.add_argument("-hd", "--hidden_dim", dest="hidden_dim", type=int, default=32, help="Size of the hidden dimension.")
+    parser.add_argument("-ld", "--latent_dim", dest="latent_dim", type=int, default=16, help="Size of the latent dimension.")
     parser.add_argument("-e", "--epochs", dest="epochs", type=int, default=200, help="Number of training epochs to run through.")
+    parser.add_argument("-dr", "--dropout_rate", dest="dropout_rate", type=float, default=0.5, help="Dropout probability during training.")
+    parser.add_argument("-lr", "--learning_rate", dest="learning_rate", type=float, default=0.01, help="Step size during backprop update.")
+    parser.add_argument("-wd", "--weight_decay", dest="weight_decay", type=float, default=5e-4, help="L2 penalty to apply to weights during loss calculation.")
     parser.add_argument("-l", "--log_dir", dest="log_dir", type=str, default="./training_logs", help="Directory to store training logs.")
     args = parser.parse_args()
 
@@ -78,4 +80,4 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
 
-    train(args.epochs, args.batch_size, args.hidden_dim, args.latent_dim, args.log_dir)
+    train(args.epochs, args.batch_size, args.hidden_dim, args.latent_dim, args.learning_rate, args.weight_decay, args.dropout_rate, args.log_dir)
