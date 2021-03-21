@@ -3,14 +3,13 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from sklearn.metrics import roc_auc_score, average_precision_score
 from torch.nn import BCELoss
 from torch_geometric.datasets import Planetoid
 from torch_geometric.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 from model import VGANet
-from tools import train_test_masks
+from tools import get_scores, train_test_masks
 
 # TODO: create link prediction accuracy measure
 
@@ -36,7 +35,7 @@ def train(epochs:int, batch_size: int, hidden_dim: int, latent_dim: int, log_dir
 
     prepped_data = train_test_masks(adj_orig)
     adj_train, _, val_edges, val_edges_f, test_edges, test_edges_f = prepped_data
-    for i in range(0, epochs):
+    for i in range(0, epochs+1):
         epoch_loss = 0
         optimizer.zero_grad()
 
@@ -45,13 +44,25 @@ def train(epochs:int, batch_size: int, hidden_dim: int, latent_dim: int, log_dir
         kl_div = (0.5/num_nodes) * ((1 + 2*torch.log(model.xs**2)) - model.xu**2 - model.xs**2).sum(1).mean()
         loss = bce - kl_div
 
+        adj_pred_det = adj_pred.clone().detach()
+        vroc, vap = get_scores(adj_orig, adj_pred_det, val_edges, val_edges_f)
+
         writer.add_scalar("Training_Loss", loss, i)
+        writer.add_scalar("Validation AP", vap, i)
+        writer.add_scalar("Validation ROC", vroc, i)
         epoch_loss += loss.item()
 
         loss.backward()
         optimizer.step()
 
-        print(f"{i}/{epochs} loss: {epoch_loss}")
+        print(f"{i}/{epochs} loss: {epoch_loss}, AP: {vap}, ROC: {vroc}")
+
+    adj_pred_test = torch.sigmoid(torch.matmul(model.xu, model.xu.t())).detach()
+
+    troc, tap = get_scores(adj_orig, adj_pred_test, test_edges, test_edges_f)
+    writer.add_scalar("Test AP", tap)
+    writer.add_scalar("Test ROC", troc)
+    print(f"Test Eval AP: {tap}, ROC: {troc}")
 
 def parse_args():
     parser = argparse.ArgumentParser()
