@@ -61,6 +61,7 @@ def train(epochs:int, batch_size: int, hidden_dim: int, latent_dim: int, learnin
     troc, tap = get_scores(adj_orig, adj_pred_test, test_edges, test_edges_f)
     writer.add_scalar("Test AP", tap)
     writer.add_scalar("Test ROC", troc)
+
     print(f"Test Eval AP: {tap}, ROC: {troc}")
 
 def parse_args():

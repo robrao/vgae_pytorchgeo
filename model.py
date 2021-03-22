@@ -37,6 +37,6 @@ class VGANet(nn.Module):
         x, edge_index = data.x, data.edge_index
 
         xu, xs = self.encode(x, edge_index)
-        adj_pred = self.decode(xs, xu)
+        adj_pred = self.decode(xu, xs)
 
         return adj_pred
